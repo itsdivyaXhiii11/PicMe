@@ -1,4 +1,10 @@
-import io, os, sqlite3
+"""Shared helpers: where the photos live and how to fetch them.
+
+The database is NOT here any more - it moved to Postgres (db.py).
+"""
+import io
+import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,13 +15,6 @@ ALLOW_UPLOAD = os.environ.get("ALLOW_SELFIE_UPLOAD", "0") == "1"
 DATA = "data"
 THUMBS = f"{DATA}/thumbs"
 os.makedirs(THUMBS, exist_ok=True)
-
-
-def db():
-    con = sqlite3.connect(f"{DATA}/portal.db")
-    con.execute("CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY, name TEXT)")
-    con.execute("CREATE TABLE IF NOT EXISTS faces(photo_id TEXT, emb BLOB)")
-    return con
 
 
 def drive():

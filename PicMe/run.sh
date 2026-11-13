@@ -6,4 +6,4 @@ source venv/bin/activate
 pip install -q -r requirements.txt
 [ -f .env ] || cp .env.example .env
 [ -f data/portal.db ] || python ingest.py
-uvicorn app:app --port 8000
+uvicorn main:app --port 8000
