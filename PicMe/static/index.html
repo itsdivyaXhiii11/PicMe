@@ -27,9 +27,13 @@ button:disabled{opacity:.5;cursor:wait}
 #msg.err{color:#d6336c}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:40px 0 16px}
 .bar h2{margin:0;font-size:1.6rem}
-.grid{columns:3 220px;column-gap:14px}
-.card{break-inside:avoid;margin:0 0 14px;position:relative;border-radius:10px;overflow:hidden;background:var(--line)}
-.card img{display:block;width:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.card{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--line)}
+.card img{display:block;width:100%;height:100%;object-fit:cover}
+.zips{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
+.zips .btn{padding:10px 18px;font-size:.92rem}
+.more{display:block;margin:24px auto 0}
+.expired{background:#d6336c;color:#fff;border-radius:12px;padding:14px 18px;margin:0 0 18px;font-weight:600}
 .card a{position:absolute;right:8px;bottom:8px;background:var(--gold);color:#1b1f3b;font-weight:600;font-size:.85rem;padding:7px 14px;border-radius:999px;text-decoration:none}
 [hidden]{display:none!important}
 </style>
@@ -50,9 +54,10 @@ button:disabled{opacity:.5;cursor:wait}
   <section id="out" hidden>
     <div class="bar">
       <h2 id="count"></h2>
-      <a id="zip" class="btn">Download all</a>
     </div>
+    <div id="zips" class="zips" aria-label="Download ZIP files"></div>
     <div id="grid" class="grid"></div>
+    <button id="more" class="more" hidden>Show more</button>
   </section>
 </main>
 
@@ -95,20 +100,87 @@ async function send(blob) {
   scan.disabled = !v.srcObject;
 }
 
-function show({token, photos}) {
+const PAGE = 48;                       // photos drawn at a time
+let TOKEN = '', PHOTOS = [], shown = 0;
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// A dead session: say so clearly and send the student back to the scan.
+function expired(text) {
+  TOKEN = ''; PHOTOS = []; shown = 0;
+  out.hidden = true;
+  document.getElementById('grid').innerHTML = '';
+  say(text || 'Your session has expired. Please scan your face again.', true);
+  scan.disabled = !v.srcObject;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// Ask the server if the session is still alive (also tells us the ZIP parts).
+async function zipInfo() {
+  const r = await fetch('/api/zip/info?t=' + encodeURIComponent(TOKEN));
+  if (r.status === 401) { expired(); return null; }
+  if (!r.ok) throw new Error('Could not reach the server. Try again.');
+  return r.json();
+}
+
+function addCards() {
+  const g = document.getElementById('grid');
+  const end = Math.min(shown + PAGE, PHOTOS.length);
+  for (; shown < end; shown++) {
+    const p = PHOTOS[shown];
+    const d = document.createElement('div'); d.className = 'card';
+    const img = document.createElement('img');
+    img.loading = 'lazy'; img.decoding = 'async';
+    img.alt = 'Photo ' + p.name;                     // set as a property: no HTML parsing
+    img.src = '/api/thumb/' + encodeURIComponent(p.id) + '?t=' + encodeURIComponent(TOKEN);
+    img.onerror = () => { img.onerror = null; zipInfo().catch(() => {}); };   // expired? tell the student
+    const a = document.createElement('a');
+    a.textContent = 'Download';
+    a.href = '/api/photo/' + encodeURIComponent(p.id) + '?t=' + encodeURIComponent(TOKEN);
+    a.setAttribute('download', p.name);
+    a.onclick = async e => {                         // check session first so an expired link is not a dead download
+      e.preventDefault();
+      try { if (await zipInfo()) location.href = a.href; } catch (err) { say(err.message, true); }
+    };
+    d.append(img, a); g.appendChild(d);
+  }
+  const more = document.getElementById('more');
+  more.hidden = shown >= PHOTOS.length;
+  more.textContent = `Show more (${PHOTOS.length - shown} left)`;
+}
+document.getElementById('more').onclick = addCards;
+
+function drawZips(info) {
+  const z = document.getElementById('zips'); z.innerHTML = '';
+  for (const p of info.parts) {
+    const b = document.createElement('a'); b.className = 'btn';
+    b.textContent = info.total_parts === 1 ? `Download all (${p.first}–${p.last})`
+                                           : `Part ${p.part} (${p.first}–${p.last})`;
+    b.href = '/api/zip?t=' + encodeURIComponent(TOKEN) + '&part=' + p.part;
+    b.onclick = async e => {
+      e.preventDefault();
+      try { if (await zipInfo()) location.href = b.href; } catch (err) { say(err.message, true); }
+    };
+    z.appendChild(b);
+  }
+}
+
+async function show({token, photos}) {
   if (!photos.length) { say("No photos found yet. Try again facing the light, or check back later.", true); return; }
   say('');
+  TOKEN = token; PHOTOS = photos; shown = 0;
   document.getElementById('count').textContent = photos.length + (photos.length === 1 ? ' photo' : ' photos') + ' of you';
-  document.getElementById('zip').href = '/api/zip?t=' + token;
-  const g = document.getElementById('grid'); g.innerHTML = '';
-  for (const p of photos) {
-    const d = document.createElement('div'); d.className = 'card';
-    d.innerHTML = `<img loading="lazy" alt="Photo ${p.name}" src="/api/thumb/${encodeURIComponent(p.id)}?t=${token}">
-                   <a href="/api/photo/${encodeURIComponent(p.id)}?t=${token}" download>Download</a>`;
-    g.appendChild(d);
-  }
+  document.getElementById('grid').innerHTML = '';
+  document.getElementById('zips').innerHTML = '';
+  addCards();                                         // only the first 48 are created
   out.hidden = false; out.scrollIntoView({behavior:'smooth'});
+  try { const info = await zipInfo(); if (info) drawZips(info); }
+  catch (e) { say(e.message, true); }
 }
+
+// Coming back to a tab that sat open for a long time? Re-check the session.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && TOKEN) zipInfo().catch(() => {});
+});
 </script>
 </body>
 </html>
