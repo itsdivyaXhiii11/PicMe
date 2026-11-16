@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PicMe · Admin</title>
+<style>
+:root{--paper:#f2f0ec;--ink:#1b1f3b;--cobalt:#2f3bff;--gold:#f2b705;--mute:#6b6f85;--line:#d9d6cf;--card:#fff;--bad:#d6336c;--ok:#2b8a3e}
+@media (prefers-color-scheme:dark){:root{--paper:#14162b;--ink:#f2f0ec;--mute:#9a9db5;--line:#2a2d4a;--card:#1c1f3a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+main{max-width:1100px;margin:0 auto;padding:clamp(16px,4vw,40px)}
+.brand{font-weight:800;font-size:1.5rem;letter-spacing:-.03em}
+.brand span{background:var(--gold);color:#1b1f3b;padding:0 8px;border-radius:8px;margin-left:2px}
+h1{font-size:1.4rem;margin:6px 0 20px}
+.login{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+input[type=password]{font:inherit;padding:10px 14px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:240px}
+button,.btn{font:inherit;font-weight:600;background:var(--cobalt);color:#fff;border:0;border-radius:999px;padding:9px 18px;cursor:pointer;text-decoration:none;display:inline-block}
+button.alt{background:transparent;color:var(--ink);border:2px solid var(--ink)}
+button.danger{background:var(--bad)}
+button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+#msg{min-height:1.6em;margin:0 0 14px;font-weight:600}
+#msg.err{color:var(--bad)} #msg.ok{color:var(--ok)}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+tr:last-child td{border-bottom:0}
+td.actions{white-space:nowrap}
+td.actions button{margin-right:6px}
+.tag{display:inline-block;padding:1px 10px;border-radius:999px;font-size:.78rem;font-weight:700}
+.tag.live{background:#d3f9d8;color:#1b5e20} .tag.dead{background:#ffe3e3;color:#a61e4d}
+.links{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
+.links .btn{background:var(--gold);color:#1b1f3b;padding:5px 12px;font-size:.85rem}
+.empty{padding:28px;text-align:center;color:var(--mute)}
+code{word-break:break-all}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Pic<span>Me</span> <small style="font-weight:400;font-size:.9rem">admin</small></div>
+  <h1>Download exports</h1>
+
+  <!-- not a <form>: a form could send the password in the URL if JavaScript failed -->
+  <div class="login">
+    <label for="pw" style="font-weight:600">Admin password</label>
+    <input id="pw" type="password" autocomplete="off" placeholder="Enter password">
+    <button id="login">Load exports</button>
+    <button id="logout" class="alt" hidden>Log out</button>
+  </div>
+  <div id="msg" role="status" aria-live="polite"></div>
+
+  <div class="wrap" id="tablewrap" hidden>
+    <table>
+      <thead><tr><th>Export ID</th><th>Photos</th><th>Part</th><th>Created (UTC)</th><th>Expires (UTC)</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+// The password lives ONLY in this JS variable (never in the URL, never in localStorage).
+let PASSWORD = '';
+const $ = id => document.getElementById(id);
+const msg = $('msg');
+const say = (t, kind) => { msg.textContent = t; msg.className = kind || ''; };
+
+// Everything that comes from the API is put on the page with textContent,
+// which can never run HTML or scripts.
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else e[k] = v;
+  }
+  e.append(...kids);
+  return e;
+}
+
+// One place that talks to the server and turns errors into clear messages.
+async function api(method, path) {
+  let r;
+  try {
+    r = await fetch(path, {method, headers: {'X-Admin-Password': PASSWORD}});
+  } catch (e) { throw new Error('Cannot reach the server. Check your connection.'); }
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* not JSON */ }
+  if (r.ok) return body;
+  const detail = body && typeof body.detail === 'string' ? body.detail : '';
+  const map = {
+    401: 'Wrong admin password.',
+    404: 'That export no longer exists. Reload the list.',
+    410: 'That export has expired, so a new link cannot be made.',
+    503: 'The admin API is not set up on the server (ADMIN_PASSWORD missing).'
+  };
+  const err = new Error(map[r.status] || detail || ('Server error (' + r.status + ').'));
+  err.status = r.status;
+  throw err;
+}
+
+function fail(e) {
+  say(e.message, 'err');
+  if (e.status === 401) lock();
+}
+
+function lock() {                       // forget the password, hide the data
+  PASSWORD = ''; $('pw').value = '';
+  $('tablewrap').hidden = true; $('logout').hidden = true; $('login').hidden = false;
+  $('rows').replaceChildren();
+}
+
+const parseUtc = s => s ? new Date(s.replace(' ', 'T') + 'Z') : null;
+const fmt = s => s ? s : '—';
+
+function renderRows(exports) {
+  const tbody = $('rows'); tbody.replaceChildren();
+  $('tablewrap').hidden = false;
+  if (!exports.length) {
+    const td = el('td', {colSpan: 6, class: 'empty', text: 'No exports yet.'});
+    tbody.appendChild(el('tr', {}, td)); return;
+  }
+  for (const ex of exports) {
+    const exp = parseUtc(ex.expires_at);
+    const dead = exp && exp < new Date();
+    const idCell = el('td', {}, el('code', {text: ex.id}), el('div', {},
+      el('span', {class: 'tag ' + (dead ? 'dead' : 'live'), text: dead ? 'expired' : 'active'})));
+    const linkBox = el('div', {class: 'links'});
+    idCell.appendChild(linkBox);
+
+    const regen = el('button', {text: 'Regenerate'});
+    const expire = el('button', {text: 'Expire', class: 'danger'});
+    regen.onclick = () => regenerate(ex.id, regen, linkBox);
+    expire.onclick = () => expireExport(ex.id, expire);
+
+    tbody.appendChild(el('tr', {},
+      idCell,
+      el('td', {text: String((ex.photo_ids || []).length)}),
+      el('td', {text: ex.part_no == null ? '—' : String(ex.part_no)}),
+      el('td', {text: fmt(ex.created_at)}),
+      el('td', {text: fmt(ex.expires_at)}),
+      el('td', {class: 'actions'}, regen, expire)));
+  }
+}
+
+async function load(okText) {
+  const d = await api('GET', '/admin/exports');
+  renderRows(d.exports || []);
+  $('login').hidden = true; $('logout').hidden = false;
+  say(okText || (d.count + (d.count === 1 ? ' export' : ' exports')), 'ok');
+}
+
+async function regenerate(id, btn, box) {
+  btn.disabled = true; say('Creating a new link…');
+  try {
+    const d = await api('POST', '/admin/exports/' + encodeURIComponent(id) + '/regenerate');
+    box.replaceChildren();
+    const url = new URL(d.url, location.origin);        // works for relative and absolute links
+    // The link carries a one-time student-style token, NOT the admin password.
+    // Ask the server how many ZIP parts this link has so every part gets a button.
+    let parts = [{part: 1, first: 1, last: (d.photo_ids || []).length}];
+    try {
+      const t = url.searchParams.get('t');
+      const r = await fetch('/api/zip/info?t=' + encodeURIComponent(t));
+      if (r.ok) parts = (await r.json()).parts || parts;
+    } catch (e) { /* fall back to a single link */ }
+    for (const p of parts) {
+      const u = new URL(url); if (parts.length > 1) u.searchParams.set('part', p.part);
+      box.appendChild(el('a', {class: 'btn', href: u.href,
+        text: parts.length > 1 ? `Download part ${p.part} (${p.first}–${p.last})` : 'Download ZIP'}));
+    }
+    box.appendChild(el('div', {}, el('small', {text: 'Link valid until ' + d.expires_at + ' UTC'})));
+    say('New link created for export ' + id + '.', 'ok');
+  } catch (e) { fail(e); }
+  btn.disabled = false;
+}
+
+async function expireExport(id, btn) {
+  if (!confirm('Expire export ' + id + '? Its current download link will stop working.')) return;
+  btn.disabled = true;
+  try {
+    await api('POST', '/admin/exports/' + encodeURIComponent(id) + '/expire');
+    await load('Export ' + id + ' expired.');
+  } catch (e) { fail(e); btn.disabled = false; }
+}
+
+async function login() {
+  PASSWORD = $('pw').value;
+  if (!PASSWORD) { say('Enter the admin password first.', 'err'); return; }
+  $('login').disabled = true; say('Checking…');
+  try { await load(); $('pw').value = ''; }
+  catch (e) { fail(e); }
+  $('login').disabled = false;
+}
+
+$('login').onclick = login;
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+$('logout').onclick = () => { lock(); say('Logged out.'); };
+</script>
+</body>
+</html>

@@ -13,6 +13,9 @@ The actual endpoints live in:
   routes_admin.py     -> /admin/*                  (Person A)
 """
 import threading
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 import numpy as np
 from fastapi import FastAPI
