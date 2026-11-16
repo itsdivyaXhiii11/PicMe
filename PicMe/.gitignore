@@ -21,3 +21,6 @@ Thumbs.db
 # stray tool caches
 .sf/
 
+last_token.txt
+drive-test-photos/
+
