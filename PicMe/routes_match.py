@@ -24,7 +24,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 import db
 from common import ALLOW_UPLOAD
-from main import IDS, MAT, NAMES, fa   # built in main.py at startup
+from main import IDS, MAT, NAMES, get_model  
 
 router = APIRouter()
 
@@ -127,7 +127,7 @@ def match(request: Request, file: UploadFile = File(...)):
         raise HTTPException(400, "Couldn't read that image.")
 
     # 3) the AI must see EXACTLY one clear face
-    faces = fa.get(img)
+    faces = get_model().get(img)
     if len(faces) != 1:
         raise HTTPException(400, "We need exactly one clear face in the frame. Try again in better light.")
 
