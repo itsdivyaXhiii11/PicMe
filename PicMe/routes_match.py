@@ -141,3 +141,8 @@ def match(request: Request, file: UploadFile = File(...)):
     token = secrets.token_urlsafe(24)
     db.save_session(db.hash_token(token), list(hit), time.time() + SESSION_SECONDS)
     return {"token": token, "photos": [{"id": p, "name": NAMES.get(p, p)} for p in hit]}
+
+
+@router.get("/health")
+def health():
+    return {"status": "ok", "photos": len(NAMES), "faces": len(IDS)}
