@@ -1,17 +1,3 @@
-"""PicMe - SETUP ONLY (this file was split out of app.py).
-
-Everything here runs ONCE when the server boots:
-  1. load the face-recognition model       (slow, so never per-request)
-  2. open the Google Drive client
-  3. load all photo names + face embeddings from Postgres into RAM
-  4. create the FastAPI app and attach the routers (the real endpoints)
-  5. mount the website (static/) as the last fallback
-
-The actual endpoints live in:
-  routes_match.py     -> /api/status, /api/match   (Person A)
-  routes_download.py  -> /api/thumb, /api/photo, /api/zip  (Person B)
-  routes_admin.py     -> /admin/*                  (Person A)
-"""
 import threading
 from dotenv import load_dotenv
 
@@ -25,11 +11,9 @@ from insightface.app import FaceAnalysis
 from common import drive
 from db import list_faces, list_photos
 
-# ------------------------------------------------------------------ model
-# InsightFace ("buffalo_l") is the AI that turns a face into 512 numbers.
-# Loading it takes a few seconds, so we load it exactly once, here.
-fa = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-fa.prepare(ctx_id=-1, det_size=(640, 640))
+#switch to s(small)
+fa = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"])
+fa.prepare(ctx_id=-1, det_size=(320, 320))
 
 # ----------------------------------------------------------------- Drive
 # One Drive client for the whole server process.
