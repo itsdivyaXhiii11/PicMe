@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-POOL_SIZE = int(os.environ.get("POOL_SIZE", "5"))
+POOL_SIZE = int(os.environ.get("POOL_SIZE", "2"))
 
 _pool = None
 _pool_lock = threading.Lock()
