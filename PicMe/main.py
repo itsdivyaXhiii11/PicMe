@@ -74,4 +74,7 @@ app.include_router(admin_router)
 
 # The website itself (static/index.html). Keep this line LAST so it only
 # catches URLs that no API route claimed.
+from routes_import import router as import_router
+app.include_router(import_router)
+
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

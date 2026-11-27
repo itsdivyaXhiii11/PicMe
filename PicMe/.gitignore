@@ -24,3 +24,10 @@ Thumbs.db
 last_token.txt
 drive-test-photos/
 
+
+service_account.json
+*.json.bak
+static/admin.html.bak
+.env
+venv/
+__pycache__/
