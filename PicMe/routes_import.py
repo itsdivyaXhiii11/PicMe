@@ -65,7 +65,7 @@ def run_ingest(job_id, ev):
     env = dict(os.environ, DRIVE_FOLDER_ID=ev["folder_id"], EVENT_ID=ev["id"],
                EVENT_NAME=ev["name"], EVENT_DATE=ev["date"])
     try:
-        p = subprocess.Popen([sys.executable, "ingest.py"], cwd=str(BASE), env=env,
+        p = subprocess.Popen([sys.executable, "-u", "ingest.py"], cwd=str(BASE), env=env,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in p.stdout:
             job["log"] = (job["log"] + [line.rstrip()])[-30:]
