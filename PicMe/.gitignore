@@ -7,7 +7,7 @@ __pycache__/
 # secrets - NEVER commit these
 .env
 service_account.json
-
+picme.json
 # runtime data (thumbnails, old sqlite file)
 data/
 photos/

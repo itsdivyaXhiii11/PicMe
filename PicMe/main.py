@@ -12,7 +12,7 @@ from common import drive
 from db import list_faces, list_photos
 
 #switch to s(small)
-fa = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"])
+fa = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
 fa.prepare(ctx_id=-1, det_size=(320, 320))
 
 # ----------------------------------------------------------------- Drive

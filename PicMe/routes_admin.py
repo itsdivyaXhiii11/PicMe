@@ -24,6 +24,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 import db
+import numpy as np
 
 router = APIRouter()
 
@@ -125,3 +126,21 @@ def expire(export_id: str,
     if row and row.get("token_hash"):
         db.delete_session(row["token_hash"])     # the old link stops working
     return {"ok": True, "export": _public(row) if row else None}
+
+
+@router.post("/admin/reload")
+def reload_index(x_admin_password: str = Header(default=None),
+                 password: str = Query(default=None)):
+    """Reload the face index from the database without restarting the server."""
+    require_admin(x_admin_password, password)
+    try:
+        import main
+        photos = db.list_photos()
+        main.NAMES = {p[0]: p[1] for p in photos}
+        rows = db.list_faces()
+        main.IDS = [r[0] for r in rows]
+        main.MAT = (np.vstack([np.asarray(r[1], dtype=np.float32) for r in rows])
+                    if rows else np.zeros((0, 512), np.float32))
+        return {"ok": True, "photos": len(main.NAMES), "faces": len(main.IDS)}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to reload: {str(e)}")

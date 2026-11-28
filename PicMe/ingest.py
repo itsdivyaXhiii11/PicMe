@@ -84,8 +84,8 @@ def main():
     known = db.list_photo_ids()          # {id: thumb_path} - already indexed
     print(f"{len(known)} photos already in the database", flush=True)
 
-    print("Loading AI model (buffalo_s)...", flush=True)
-    fa = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"])
+    print("Loading AI model (buffalo_l)...", flush=True)
+    fa = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
     fa.prepare(ctx_id=-1, det_size=(DETECT_SIZE, DETECT_SIZE))
     print("AI model ready", flush=True)
 
