@@ -13,8 +13,9 @@ fi
 source venv/bin/activate
 
 # Number of workers (adjust based on your instance)
-# For 2 OCPU: 4 workers
-WORKERS=${WORKERS:-4}
+# For 2 vCPU + 4GB RAM: 2 workers
+# For 4 vCPU + 8GB RAM: 4 workers
+WORKERS=${WORKERS:-2}
 
 # Port (Oracle Cloud might require specific ports)
 PORT=${PORT:-8000}
