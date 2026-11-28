@@ -255,7 +255,13 @@ $('logout').onclick = () => { lock(); say('Logged out.'); };
     <button class="pm-btn" id="pm-go">Add &amp; index</button>
   </div>
   <div id="pm-msg" style="margin-top:14px;min-height:22px"></div>
-  <pre id="pm-log" hidden></pre>
+  <div id="pm-status" style="margin-top:10px;display:none">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="pm-spinner" style="width:20px;height:20px;border:3px solid #2a2f5c;border-top-color:#2b35f5;border-radius:50%;animation:pm-spin 1s linear infinite"></div>
+      <span id="pm-status-text">Indexing photos...</span>
+    </div>
+  </div>
+  <style>@keyframes pm-spin{to{transform:rotate(360deg)}}</style>
 </div>
 <script>
 (function(){
@@ -278,14 +284,14 @@ async function load(){
   catch(x){msg(x.message,"err")}}
 async function email(){try{const d=await api("/admin/credentials-info");$("pm-em").textContent=d.email||"service_account.json not found"}catch(e){}}
 $("pm-copy").onclick=e=>{navigator.clipboard.writeText($("pm-em").textContent);e.target.textContent="Copied";setTimeout(()=>e.target.textContent="Copy",1200)};
-$("pm-go").onclick=async()=>{$("pm-go").disabled=true;msg("Checking the folder…");
+$("pm-go").onclick=async()=>{$("pm-go").disabled=true;msg("Checking the folder…");$("pm-status").style.display="none";
   const fd=new FormData();fd.append("event_name",$("pm-name").value);fd.append("event_date",$("pm-date").value);fd.append("drive_link",$("pm-link").value);
-  try{const d=await api("/admin/import-drive",{method:"POST",body:fd});msg(`Found ${d.photos} photos. Indexing…`);poll(d.job_id)}
-  catch(x){msg(x.message,"err");$("pm-go").disabled=false}};
+  try{const d=await api("/admin/import-drive",{method:"POST",body:fd});msg(`Found ${d.photos} photos. Starting indexing…`);$("pm-status").style.display="block";$("pm-status-text").textContent="Indexing photos...";poll(d.job_id)}
+  catch(x){msg(x.message,"err");$("pm-go").disabled=false;$("pm-status").style.display="none"}};
 async function poll(id){const d=await api("/admin/import-status/"+id);
-  $("pm-log").hidden=false;$("pm-log").textContent=(d.log||[]).join("\n");
-  if(d.status==="running")return setTimeout(()=>poll(id),2000);
-  msg(d.status==="done"?"Done. Photos indexed.":"Failed. See log.",d.status==="done"?"ok":"err");
+  if(d.status==="running"){$("pm-status-text").textContent=`Indexing... ${d.log&&d.log.length>0?d.log[d.log.length-1]:""}`;return setTimeout(()=>poll(id),2000)}
+  $("pm-status").style.display="none";
+  msg(d.status==="done"?"Indexing done! Now share it with students.":"Failed. Please try again.",d.status==="done"?"ok":"err");
   $("pm-go").disabled=false;load()}
 async function unlock(){
   try{await api("/admin/events");$("pm-wrap").classList.add("open");document.body.classList.add("pm-open");sweep();load();email()}
